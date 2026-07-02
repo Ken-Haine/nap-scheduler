@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>昼寝スケジューラー</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --primary: #5B57D6;
+    --primary-light: #7D79E8;
+    --primary-pale: #ECEBFB;
+    --navy: #201B45;
+    --gold: #F2A65A;
+    --gold-pale: #FDF0E2;
+    --warn: #B5762A;
+    --warn-bg: #FFF6E8;
+    --warn-border: #F0D6A8;
+    --bg: #F8F8FC;
+    --card: #FFFFFF;
+    --border: #E6E4F2;
+    --text: #221F33;
+    --text-sub: #66637A;
+    --radius: 16px;
+    --shadow: 0 2px 16px rgba(0,0,0,0.07);
+    --shadow-hover: 0 6px 24px rgba(0,0,0,0.12);
+  }
+
+  body {
+    font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'Meiryo', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  header {
+    background: linear-gradient(135deg, #5B57D6 0%, #201B45 100%);
+    color: white;
+    text-align: center;
+    padding: 2.4rem 1rem 1.8rem;
+  }
+  header .logo { font-size: 1.8rem; font-weight: 900; letter-spacing: -0.01em; }
+  header p { margin-top: .5rem; opacity: 0.92; font-size: .92rem; }
+
+  .container { max-width: 780px; margin: 0 auto; padding: 2rem 1rem 4rem; }
+
+  .privacy-notice {
+    background: var(--primary-pale);
+    border: 1.5px solid #D3D0F2;
+    border-radius: var(--radius);
+    padding: 1rem 1.3rem;
+    margin-bottom: 1.5rem;
+    font-size: .85rem;
+    line-height: 1.7;
+    color: var(--navy);
+  }
+  .privacy-notice strong { color: var(--primary); }
+
+  .disclaimer {
+    background: var(--warn-bg);
+    border: 1.5px solid var(--warn-border);
+    border-radius: var(--radius);
+    padding: 1rem 1.3rem;
+    margin-bottom: 1.5rem;
+    font-size: .83rem;
+    line-height: 1.7;
+    color: #6E4A16;
+  }
+  .disclaimer .title { font-weight: 800; color: var(--warn); margin-bottom: .3rem; }
+
+  .warn-card {
+    background: var(--gold-pale);
+    border: 1.5px solid #F0CBA0;
+    border-radius: var(--radius);
+    padding: 1rem 1.3rem;
+    margin-bottom: 1.2rem;
+    font-size: .85rem;
+    line-height: 1.7;
+    color: #7A4E1A;
+  }
+
+  .form-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 2rem;
+    margin-bottom: 2rem;
+  }
+  .form-card h2 { font-size: 1.05rem; color: var(--text-sub); margin-bottom: 1.2rem; }
+
+  .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 560px) { .fields { grid-template-columns: 1fr; } }
+
+  .field { display: flex; flex-direction: column; gap: .4rem; }
+  .field.full { grid-column: 1 / -1; }
+  .field label { font-size: .8rem; font-weight: 700; color: var(--text-sub); letter-spacing: .03em; }
+  .field .hint { font-size: .74rem; color: var(--text-sub); opacity: .85; }
+
+  input, select {
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: .65rem .9rem;
+    font-size: .95rem;
+    font-family: inherit;
+    background: var(--bg);
+    color: var(--text);
+    transition: border-color .2s, box-shadow .2s;
+    outline: none;
+  }
+  input:focus, select:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(91,87,214,0.15);
+  }
+
+  .btn {
+    display: block;
+    width: 100%;
+    margin-top: 1.4rem;
+    padding: .9rem;
+    background: var(--primary);
+    color: white;
+    font-size: 1.05rem;
+    font-weight: 800;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background .2s, transform .1s, box-shadow .2s;
+    letter-spacing: .02em;
+  }
+  .btn:hover { background: var(--primary-light); box-shadow: var(--shadow-hover); }
+  .btn:active { transform: scale(0.98); }
+
+  #results { display: none; }
+  #results.show { display: block; animation: fadeUp .4s ease; }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+
+  .section-title {
+    font-size: .78rem;
+    font-weight: 700;
+    color: var(--text-sub);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    margin-bottom: .9rem;
+  }
+
+  .summary-bar {
+    background: var(--navy);
+    color: white;
+    border-radius: var(--radius);
+    padding: 1.3rem 1.5rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .summary-bar .sit-icon { font-size: 2rem; flex-shrink: 0; }
+  .summary-bar .sit-label { font-size: 1.2rem; font-weight: 800; }
+  .summary-bar .sit-meta { font-size: .85rem; opacity: .8; margin-top: .15rem; }
+  .summary-actions { display: flex; gap: .5rem; flex-shrink: 0; align-items: center; }
+  .reset-btn, .dl-btn {
+    padding: .4rem .9rem;
+    background: rgba(255,255,255,.15);
+    color: white;
+    border: 1.5px solid rgba(255,255,255,.4);
+    border-radius: 8px;
+    font-size: .82rem;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background .15s;
+    white-space: nowrap;
+  }
+  .reset-btn:hover, .dl-btn:hover { background: rgba(255,255,255,.28); }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: .9rem;
+    margin-bottom: 1.5rem;
+  }
+  @media (max-width: 640px) { .stat-grid { grid-template-columns: 1fr; } }
+  .stat-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1.1rem 1.2rem;
+    border-left: 4px solid var(--primary);
+  }
+  .stat-card .stat-label { font-size: .75rem; color: var(--text-sub); font-weight: 700; }
+  .stat-card .stat-value { font-size: 1.15rem; font-weight: 800; margin-top: .3rem; color: var(--navy); }
+  .stat-card .stat-sub { font-size: .74rem; color: var(--text-sub); margin-top: .3rem; line-height: 1.6; }
+  .stat-card.total { border-left-color: var(--gold); }
+
+  .timeline-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1.4rem;
+    margin-bottom: 1.5rem;
+  }
+  .timeline { position: relative; padding-left: 1.6rem; }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: .38rem; top: .4rem; bottom: .4rem;
+    width: 2px;
+    background: var(--border);
+  }
+  .tl-step { position: relative; padding-bottom: 1.3rem; }
+  .tl-step:last-child { padding-bottom: 0; }
+  .tl-step::before {
+    content: '';
+    position: absolute;
+    left: -1.6rem; top: .15rem;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: 2px solid white;
+    box-shadow: 0 0 0 2px var(--primary);
+  }
+  .tl-step .tl-title { font-weight: 800; font-size: .95rem; }
+  .tl-step .tl-date { font-size: .82rem; color: var(--primary); font-weight: 700; margin-top: .1rem; }
+  .tl-step .tl-desc { font-size: .82rem; color: var(--text-sub); margin-top: .2rem; line-height: 1.6; }
+
+  /* Timer */
+  .timer-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1.4rem;
+    margin-bottom: 1.5rem;
+  }
+  .timer-presets { display: flex; gap: .6rem; flex-wrap: wrap; margin-bottom: .9rem; }
+  .timer-chip {
+    padding: .6rem 1.1rem;
+    background: var(--primary-pale);
+    border: 1.5px solid #D3D0F2;
+    border-radius: 12px;
+    font-size: .88rem;
+    font-weight: 700;
+    color: var(--primary);
+    cursor: pointer;
+    font-family: inherit;
+    transition: background .15s;
+  }
+  .timer-chip:hover { background: #DEDBF9; }
+  .timer-custom { display: flex; gap: .5rem; align-items: center; }
+  .timer-custom input { width: 90px; }
+  .timer-active {
+    display: none;
+    text-align: center;
+    background: var(--navy);
+    color: white;
+    border-radius: var(--radius);
+    padding: 1.6rem;
+    margin-top: 1rem;
+  }
+  .timer-active .timer-display { font-size: 2.4rem; font-weight: 900; letter-spacing: .05em; }
+  .timer-active .timer-label { font-size: .8rem; opacity: .75; margin-top: .3rem; }
+  .timer-stop-btn {
+    margin-top: 1rem;
+    padding: .5rem 1.2rem;
+    background: rgba(255,255,255,.15);
+    color: white;
+    border: 1.5px solid rgba(255,255,255,.4);
+    border-radius: 8px;
+    font-size: .85rem;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .timer-stop-btn:hover { background: rgba(255,255,255,.28); }
+
+  @media print {
+    header, .form-card, .summary-actions, .timer-card { display: none !important; }
+    body { background: white; }
+    .container { padding: 0; max-width: 100%; }
+    #results { display: block !important; animation: none !important; }
+  }
+
+  @media (max-width: 560px) {
+    header { padding: 1.6rem 1rem 1.3rem; }
+    header .logo { font-size: 1.35rem; }
+    header p { font-size: .8rem; }
+    .container { padding: 1.2rem .75rem 3rem; }
+    .form-card { padding: 1.3rem 1rem; }
+    .form-card h2 { font-size: .95rem; margin-bottom: 1rem; }
+    input, select { font-size: .9rem; padding: .6rem .75rem; }
+    .btn { font-size: .95rem; padding: .8rem; }
+    .summary-bar { padding: 1rem 1.1rem; gap: .7rem; }
+    .summary-bar .sit-label { font-size: 1.05rem; }
+    .summary-bar .sit-meta { font-size: .78rem; }
+    .stat-card { padding: .9rem 1rem; }
+    .timeline-card, .timer-card { padding: 1.1rem; }
+  }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+
+<header>
+  <div class="logo">😴 昼寝スケジューラー</div>
+  <p>起床・就寝時刻から、今日の最適な仮眠タイミングと長さを提案します</p>
+</header>
+
+<div class="container">
+
+  <div class="privacy-notice">
+    🔒 入力した時刻などの情報は<strong>サーバーに送信されず</strong>、お使いのブラウザ内（localStorage）にのみ保存されます。外部に共有されることはありません。
+  </div>
+
+  <!-- Form -->
+  <div class="form-card">
+    <form id="main-form" onsubmit="return false;">
+      <h2>今日の予定を入力してください</h2>
+      <div class="fields">
+        <div class="field">
+          <label>今日の起床時刻</label>
+          <input id="wakeTime" type="time">
+        </div>
+        <div class="field">
+          <label>今日の就寝予定時刻</label>
+          <input id="bedTime" type="time">
+        </div>
+        <div class="field">
+          <label>今の眠気レベル（任意）</label>
+          <select id="sleepiness">
+            <option value="">選んでください</option>
+            <option value="slight">少し眠い</option>
+            <option value="strong">かなり眠い</option>
+            <option value="none">特に眠くないが仮眠したい</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>仮眠を取れる環境（任意）</label>
+          <select id="environment">
+            <option value="">選んでください</option>
+            <option value="lie">横になれる</option>
+            <option value="desk">机に伏せる程度</option>
+          </select>
+        </div>
+      </div>
+      <button type="button" class="btn" onclick="simulate()">仮眠プランを提案する →</button>
+    </form>
+  </div>
+
+  <!-- Results -->
+  <div id="results">
+
+    <div class="summary-bar">
+      <div class="sit-icon">😴</div>
+      <div style="flex:1;">
+        <div class="sit-label">今日の仮眠プラン</div>
+        <div class="sit-meta" id="result-meta"></div>
+      </div>
+      <div class="summary-actions">
+        <button class="reset-btn" onclick="resetResults()">✕ 結果を消す</button>
+        <button class="dl-btn" onclick="downloadHTML()">📄 HTML</button>
+        <button class="dl-btn" onclick="downloadPDF()">🖨 PDF</button>
+      </div>
+    </div>
+
+    <div id="warn-wrap"></div>
+
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">推奨仮眠タイミング</div>
+        <div class="stat-value" id="stat-window"></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">推奨する仮眠の長さ</div>
+        <div class="stat-value" id="stat-length"></div>
+        <div class="stat-sub" id="stat-length-reason"></div>
+      </div>
+      <div class="stat-card total">
+        <div class="stat-label">昼寝タイムリミット</div>
+        <div class="stat-value" id="stat-limit"></div>
+        <div class="stat-sub">これ以降の仮眠は夜の睡眠に影響する可能性があります</div>
+      </div>
+    </div>
+
+    <div class="timeline-card">
+      <div class="section-title">今日のタイムライン</div>
+      <div class="timeline" id="timeline"></div>
+    </div>
+
+    <div class="timer-card">
+      <div class="section-title">仮眠タイマー</div>
+      <div class="timer-presets">
+        <button type="button" class="timer-chip" onclick="startTimer(1)">1分</button>
+        <button type="button" class="timer-chip" onclick="startTimer(5)">5分</button>
+        <button type="button" class="timer-chip" onclick="startTimer(10)">10分</button>
+        <button type="button" class="timer-chip" onclick="startTimer(20)">20分</button>
+        <button type="button" class="timer-chip" onclick="startTimer(90)">90分</button>
+      </div>
+      <div class="timer-custom">
+        <input id="customMinutes" type="number" min="1" max="180" placeholder="分数">
+        <button type="button" class="timer-chip" onclick="startTimer(parseInt(document.getElementById('customMinutes').value))">この時間で開始</button>
+      </div>
+      <div class="timer-active" id="timer-active-wrap">
+        <div class="timer-display" id="timer-display">--:--</div>
+        <div class="timer-label">仮眠タイマー作動中</div>
+        <button type="button" class="timer-stop-btn" onclick="stopTimer()">タイマーを止める</button>
+      </div>
+    </div>
+
+    <div class="disclaimer">
+      <div class="title">⚠ ご利用にあたっての注意</div>
+      本ツールは一般的な睡眠科学の知見に基づく仮眠タイミングの目安を示すものであり、医学的な診断・治療的助言ではありません。個人の体質・生活リズム・健康状態によって最適な仮眠のタイミング・長さは異なります。不眠や強い眠気が続く、日中の眠気が生活に支障をきたしている等の場合は、自己判断で本ツールに頼らず医療機関にご相談ください。
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// TIME HELPERS
+// ─────────────────────────────────────────────
+const REF = new Date(2000, 0, 1);
+
+function pad(n) { return n < 10 ? '0' + n : String(n); }
+
+function parseTimeStr(str) {
+  if (!str) return null;
+  const [h, m] = str.split(':').map(Number);
+  const d = new Date(REF);
+  d.setHours(h, m, 0, 0);
+  return d;
+}
+
+function addMinutes(d, min) { const r = new Date(d); r.setMinutes(r.getMinutes() + min); return r; }
+function diffMinutes(a, b) { return Math.round((a - b) / 60000); }
+
+function formatTimeJP(d) {
+  const dayDiff = Math.floor((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - REF) / 86400000);
+  const prefix = dayDiff > 0 ? '翌日 ' : '';
+  return `${prefix}${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// ─────────────────────────────────────────────
+// SIMULATION
+// ─────────────────────────────────────────────
+function simulate() {
+  const wakeStr = document.getElementById('wakeTime').value;
+  const bedStr = document.getElementById('bedTime').value;
+  const sleepiness = document.getElementById('sleepiness').value;
+  const environment = document.getElementById('environment').value;
+
+  if (!wakeStr) { alert('今日の起床時刻を入力してください'); return; }
+  if (!bedStr) { alert('今日の就寝予定時刻を入力してください'); return; }
+
+  const wake = parseTimeStr(wakeStr);
+  let bed = parseTimeStr(bedStr);
+  if (bed <= wake) bed = addMinutes(bed, 24 * 60);
+
+  const recommendedStart = addMinutes(wake, 450); // 起床7時間30分後
+  const windowStart = addMinutes(recommendedStart, -30);
+  const windowEnd = addMinutes(recommendedStart, 30);
+  const napLimit = addMinutes(bed, -360); // 就寝6時間前
+
+  const overLimit = napLimit <= windowStart;
+  let effectiveWindowEnd = windowEnd;
+  let compressed = false;
+  if (!overLimit && napLimit < windowEnd) { effectiveWindowEnd = napLimit; compressed = true; }
+
+  const bufferMinutes = diffMinutes(napLimit, recommendedStart);
+
+  let primaryLength = 'short';
+  if (!overLimit && environment === 'lie' && sleepiness !== 'none' && bufferMinutes >= 100) {
+    primaryLength = 'full';
+  }
+
+  // meta
+  document.getElementById('result-meta').textContent =
+    `起床 ${formatTimeJP(wake)} ／ 就寝予定 ${formatTimeJP(bed)}`;
+
+  // warnings
+  const warnWrap = document.getElementById('warn-wrap');
+  let warnHtml = '';
+  if (compressed) {
+    warnHtml += `<div class="warn-card">💡 通常の推奨仮眠帯は就寝時刻に近いため、タイムリミットに合わせて時間帯を少し前倒しにしています。</div>`;
+  }
+  warnWrap.innerHTML = warnHtml;
+
+  // stat: window
+  if (overLimit) {
+    document.getElementById('stat-window').textContent = '本日は非推奨';
+  } else {
+    document.getElementById('stat-window').textContent = `${formatTimeJP(windowStart)}〜${formatTimeJP(effectiveWindowEnd)}頃`;
+  }
+
+  // stat: length + reason
+  let lengthText, reasonText;
+  if (overLimit) {
+    lengthText = '5〜10分程度（ごく短時間）';
+    reasonText = `就寝予定時刻（${formatTimeJP(bed)}）から逆算すると、仮眠に適した時間帯はすでに過ぎています。どうしても眠い場合は、ごく短い仮眠にとどめ、夜の睡眠への影響を避けましょう。`;
+  } else if (primaryLength === 'full') {
+    lengthText = '90分（完全な睡眠サイクル）';
+    reasonText = `横になれる環境があり、就寝時刻まで余裕もあるため、1回の睡眠サイクル（約90分）を経て、レム睡眠明けのタイミングで起きるとすっきり目覚めやすくなります。`;
+  } else {
+    lengthText = '10〜20分（パワーナップ）';
+    reasonText = `深いノンレム睡眠に入る前に起きられるため、すっきり目覚めやすく、どんな環境でも取り入れやすい長さです。`;
+  }
+  reasonText += ' なお、20〜90分の中途半端な仮眠は、深い眠りの途中で起きることになりやすく、だるさ（睡眠慣性）が残りやすいため避けましょう。';
+  document.getElementById('stat-length').textContent = lengthText;
+  document.getElementById('stat-length-reason').textContent = reasonText;
+
+  // stat: limit
+  document.getElementById('stat-limit').textContent = formatTimeJP(napLimit);
+
+  // timeline
+  const timeline = document.getElementById('timeline');
+  const steps = [
+    { title: '起床', date: formatTimeJP(wake), desc: '今日のスタート地点です。' },
+    { title: 'アフタヌーンディップ（眠気のピーク帯）', date: `${formatTimeJP(windowStart)}〜${formatTimeJP(windowEnd)}頃`, desc: '体内時計上、自然に眠気が強まりやすいとされる時間帯です。' },
+    { title: '昼寝タイムリミット', date: formatTimeJP(napLimit), desc: 'これ以降に仮眠を取ると、夜の入眠に影響する可能性があります。' },
+    { title: '就寝予定', date: formatTimeJP(bed), desc: '今日一日、お疲れ様でした。' },
+  ];
+  timeline.innerHTML = steps.map(s => `
+    <div class="tl-step">
+      <div class="tl-title">${s.title}</div>
+      <div class="tl-date">${s.date}</div>
+      <div class="tl-desc">${s.desc}</div>
+    </div>
+  `).join('');
+
+  // save state
+  localStorage.setItem('nap_state', JSON.stringify({ wakeStr, bedStr, sleepiness, environment }));
+
+  document.getElementById('results').classList.add('show');
+}
+
+// ─────────────────────────────────────────────
+// TIMER
+// ─────────────────────────────────────────────
+let timerInterval = null;
+let alarmInterval = null;
+
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function startTimer(minutes) {
+  if (!minutes || minutes <= 0 || isNaN(minutes)) { alert('仮眠時間を選択、または分数を入力してください'); return; }
+  requestNotificationPermission();
+  const endTs = Date.now() + minutes * 60000;
+  localStorage.setItem('nap_timer', JSON.stringify({ endTs }));
+  runTimerLoop(endTs);
+}
+
+function runTimerLoop(endTs) {
+  clearInterval(timerInterval);
+  clearInterval(alarmInterval);
+  const display = document.getElementById('timer-display');
+  const wrap = document.getElementById('timer-active-wrap');
+  wrap.style.display = 'block';
+  const stopBtn = wrap.querySelector('.timer-stop-btn');
+  if (stopBtn) stopBtn.textContent = 'タイマーを止める';
+
+  function tick() {
+    const remain = endTs - Date.now();
+    if (remain <= 0) {
+      clearInterval(timerInterval);
+      display.textContent = '⏰ 起きる時間です！';
+      notifyWake();
+      localStorage.removeItem('nap_timer');
+      return;
+    }
+    const totalSec = Math.ceil(remain / 1000);
+    const mm = Math.floor(totalSec / 60);
+    const ss = totalSec % 60;
+    display.textContent = `${mm}:${pad(ss)}`;
+  }
+  tick();
+  timerInterval = setInterval(tick, 1000);
+}
+
+function notifyWake() {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try { new Notification('昼寝の時間になりました', { body: '起きる時間です！' }); } catch (e) {}
+  }
+  clearInterval(alarmInterval);
+  playBeep();
+  alarmInterval = setInterval(playBeep, 1500);
+
+  const wrap = document.getElementById('timer-active-wrap');
+  let stopBtn = wrap.querySelector('.timer-stop-btn');
+  stopBtn.textContent = '🔕 アラームを止める';
+}
+
+function playBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = 880;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    gain.gain.setValueAtTime(0.2, ctx.currentTime);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.6);
+  } catch (e) {}
+}
+
+function stopTimer() {
+  clearInterval(timerInterval);
+  clearInterval(alarmInterval);
+  localStorage.removeItem('nap_timer');
+  const wrap = document.getElementById('timer-active-wrap');
+  if (wrap) {
+    wrap.style.display = 'none';
+    const stopBtn = wrap.querySelector('.timer-stop-btn');
+    if (stopBtn) stopBtn.textContent = 'タイマーを止める';
+  }
+}
+
+// ─────────────────────────────────────────────
+// DOWNLOAD
+// ─────────────────────────────────────────────
+function buildResultBodyHtml() {
+  let body = `<h1>昼寝スケジューラー 提案結果</h1><p>${document.getElementById('result-meta').textContent}</p>`;
+  body += `<h2>今日の仮眠プラン</h2><ul>`;
+  body += `<li>推奨仮眠タイミング：${document.getElementById('stat-window').textContent}</li>`;
+  body += `<li>推奨する仮眠の長さ：${document.getElementById('stat-length').textContent}（${document.getElementById('stat-length-reason').textContent}）</li>`;
+  body += `<li>昼寝タイムリミット：${document.getElementById('stat-limit').textContent}</li>`;
+  body += `</ul>`;
+
+  body += `<h2>今日のタイムライン</h2><ul>`;
+  document.querySelectorAll('.tl-step').forEach(step => {
+    const title = step.querySelector('.tl-title')?.textContent || '';
+    const date  = step.querySelector('.tl-date')?.textContent || '';
+    const desc  = step.querySelector('.tl-desc')?.textContent || '';
+    body += `<li><strong>${title}（${date}）</strong>：${desc}</li>`;
+  });
+  body += `</ul>`;
+
+  body += `<h2>⚠ ご利用にあたっての注意</h2><p>${document.querySelector('.disclaimer').textContent.replace('⚠ ご利用にあたっての注意','').trim()}</p>`;
+  return body;
+}
+
+function downloadHTML() {
+  const body = buildResultBodyHtml();
+  const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>昼寝スケジューラー 提案結果</title>
+<style>body{font-family:sans-serif;max-width:700px;margin:2rem auto;padding:0 1rem;line-height:1.7}h2{margin-top:1.4rem;border-bottom:1px solid #ddd;padding-bottom:.3rem}</style>
+</head><body>${body}</body></html>`;
+
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = `昼寝スケジューラー提案結果.html`; a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function downloadPDF() {
+  const { jsPDF } = window.jspdf;
+  const body = buildResultBodyHtml();
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:fixed;left:-9999px;top:0;width:680px;background:white;padding:24px;font-family:sans-serif;line-height:1.65;color:#222;font-size:13px';
+  wrap.innerHTML = `<style>h1{font-size:1.2rem}h2{font-size:1rem;border-bottom:1px solid #ddd;padding-bottom:.3rem;margin-top:1rem}</style>${body}`;
+  document.body.appendChild(wrap);
+
+  const wrapH = wrap.offsetHeight;
+  const canvas = await html2canvas(wrap, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+  document.body.removeChild(wrap);
+
+  const doc    = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageW  = doc.internal.pageSize.getWidth();
+  const pageH  = doc.internal.pageSize.getHeight();
+  const margin = 10;
+  const imgW   = pageW - margin * 2;
+  const imgH   = imgW * wrapH / 680;
+  const contH  = pageH - margin * 2;
+  const pages  = Math.ceil(imgH / contH);
+  const imgDataUrl = canvas.toDataURL('image/png');
+
+  for (let p = 0; p < pages; p++) {
+    if (p > 0) doc.addPage();
+    doc.addImage(imgDataUrl, 'PNG', margin, margin - p * contH, imgW, imgH);
+  }
+
+  doc.save(`昼寝スケジューラー提案結果.pdf`);
+}
+
+// ─────────────────────────────────────────────
+// RESET
+// ─────────────────────────────────────────────
+function resetResults() {
+  localStorage.removeItem('nap_state');
+  stopTimer();
+  document.getElementById('results').classList.remove('show');
+  document.getElementById('main-form').reset();
+  document.getElementById('warn-wrap').innerHTML = '';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ─────────────────────────────────────────────
+// INIT / RESTORE (F5 persistence)
+// ─────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  try {
+    const saved = localStorage.getItem('nap_state');
+    if (saved) {
+      const s = JSON.parse(saved);
+      if (s.wakeStr) document.getElementById('wakeTime').value = s.wakeStr;
+      if (s.bedStr) document.getElementById('bedTime').value = s.bedStr;
+      if (s.sleepiness) document.getElementById('sleepiness').value = s.sleepiness;
+      if (s.environment) document.getElementById('environment').value = s.environment;
+      if (s.wakeStr && s.bedStr) simulate();
+    }
+  } catch (e) {}
+
+  try {
+    const savedTimer = localStorage.getItem('nap_timer');
+    if (savedTimer) {
+      const t = JSON.parse(savedTimer);
+      if (t.endTs && t.endTs > Date.now()) {
+        runTimerLoop(t.endTs);
+      } else {
+        localStorage.removeItem('nap_timer');
+      }
+    }
+  } catch (e) {}
+});
+</script>
+
+</body>
+</html>
