@@ -403,6 +403,7 @@
       <div class="timer-active" id="timer-active-wrap">
         <div class="timer-display" id="timer-display">--:--</div>
         <div class="timer-label">仮眠タイマー作動中</div>
+        <div class="timer-label" id="wakelock-label" style="margin-top:.3rem;"></div>
         <button type="button" class="timer-stop-btn" onclick="stopTimer()">タイマーを止める</button>
       </div>
     </div>
@@ -539,6 +540,34 @@ function simulate() {
 let timerInterval = null;
 let alarmInterval = null;
 let audioCtx = null;
+let wakeLock = null;
+
+// タイマー作動中は画面の自動スリープを防止する（Wake Lock API）。
+// これがないとスマホがスリープしてJSごと停止し、アラームが鳴らなくなるため。
+// ただし手動で電源ボタンを押してロックした場合はこのAPIでも防げない（OSの仕様上の限界）
+async function requestWakeLock() {
+  const label = document.getElementById('wakelock-label');
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      if (label) label.textContent = '📱 画面の自動スリープを防止中（手動でロックボタンを押すと解除されます）';
+      wakeLock.addEventListener('release', () => {
+        wakeLock = null;
+        if (label) label.textContent = '';
+      });
+    } else if (label) {
+      label.textContent = '⚠ このブラウザは画面スリープ防止に対応していません。鳴らすには画面をつけたままにしてください。';
+    }
+  } catch (e) {
+    if (label) label.textContent = '';
+  }
+}
+
+function releaseWakeLock() {
+  if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+  const label = document.getElementById('wakelock-label');
+  if (label) label.textContent = '';
+}
 
 // スマホ（特にiOS Safari）は「ユーザー操作の直後」でないとAudioContextの音声再生を許可しないため、
 // タイマー開始ボタン押下（ユーザー操作の中）でAudioContextを作成・resumeして解除しておく
@@ -562,6 +591,7 @@ function startTimer(minutes) {
   if (!minutes || minutes <= 0 || isNaN(minutes)) { alert('仮眠時間を選択、または分数を入力してください'); return; }
   requestNotificationPermission();
   ensureAudioContext(); // ユーザー操作（ボタン押下）の中で音声再生を解除しておく
+  requestWakeLock();
   const endTs = Date.now() + minutes * 60000;
   localStorage.setItem('nap_timer', JSON.stringify({ endTs }));
   runTimerLoop(endTs);
@@ -624,6 +654,7 @@ function playBeep() {
 function stopTimer() {
   clearInterval(timerInterval);
   clearInterval(alarmInterval);
+  releaseWakeLock();
   localStorage.removeItem('nap_timer');
   const wrap = document.getElementById('timer-active-wrap');
   if (wrap) {
@@ -734,7 +765,10 @@ window.addEventListener('DOMContentLoaded', () => {
     if (savedTimer) {
       const t = JSON.parse(savedTimer);
       // 終了時刻を過ぎていてもrunTimerLoopのtick()が即座に検知してアラームを鳴らすため、常に呼び出す
-      if (t.endTs) runTimerLoop(t.endTs);
+      if (t.endTs) {
+        runTimerLoop(t.endTs);
+        if (t.endTs > Date.now()) requestWakeLock();
+      }
     }
   } catch (e) {}
 });
@@ -748,7 +782,10 @@ document.addEventListener('visibilitychange', () => {
       const savedTimer = localStorage.getItem('nap_timer');
       if (savedTimer) {
         const t = JSON.parse(savedTimer);
-        if (t.endTs) runTimerLoop(t.endTs);
+        if (t.endTs) {
+          runTimerLoop(t.endTs);
+          if (t.endTs > Date.now() && !wakeLock) requestWakeLock();
+        }
       }
     } catch (e) {}
   }
